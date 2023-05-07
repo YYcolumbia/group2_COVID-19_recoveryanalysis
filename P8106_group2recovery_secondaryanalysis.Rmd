@@ -18,9 +18,13 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```{r, include = FALSE}
 library(tidyverse)
 library(caret)
+library(corrplot)
+library(ggplot2)
+library(AppliedPredictiveModeling)
+library(klaR)
 ```
 
-## Import and data manipulation
+# Import and data manipulation
 
 ```{r, results='hide'}
 # Load recovery.RData environment
@@ -86,18 +90,42 @@ rowTrain = createDataPartition(y = covid_dat$recovery_time, p = 0.7, list = FALS
 trainData = covid_dat[rowTrain, ]
 testData = covid_dat[-rowTrain, ]
 
-# matrix of predictors
-x1 = covid_dat2[rowTrain,]
-# vector of response
-y1 = covid_dat$recovery_time[rowTrain]
-# matrix of predictors
-x2 = covid_dat2[-rowTrain,]
-# vector of response
-y2 = covid_dat$recovery_time[-rowTrain]
-
 ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
 ```
 
-## Data visualization
+# Data visualization
 
-## Model training
+## Correlation plot
+
+```{r}
+corr_dat = covid_dat[rowTrain,] %>% 
+  select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL')
+corrplot(cor(corr_dat), method = "circle", type = "full")
+```
+
+## Feature plot
+
+```{r}
+vis_trdat = trainData %>% 
+  select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL', 'recovery_time')
+
+theme1 = transparentTheme(trans = .4)
+trellis.par.set(theme1)
+
+featurePlot(x = vis_trdat[, 1:6],
+            y = vis_trdat[, 7],
+            scales = list(x = list(relation = "free"),
+                          y = list(relation = "free")),
+            plot = "box", pch = "|",
+            auto.key = list(columns = 2))
+```
+
+## Partition plot
+
+```{r}
+partimat(recovery_time ~ age + height + weight + bmi + SBP + LDL, data = covid_dat, subset = rowTrain, method = "lda")
+```
+
+
+
+# Model training
