@@ -1,5 +1,5 @@
 ---
-title: "P8106_midterm_yy3307" 
+title: "P8106_group2_COVID-19_recoveryanalysis" 
 author: "Yimin Chen (yc4195), Yang Yi (yy3307), Qingyue Zhuo (qz2493)"
 output:
   pdf_document:
