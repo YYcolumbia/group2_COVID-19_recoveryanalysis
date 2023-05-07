@@ -22,6 +22,8 @@ library(corrplot)
 library(ggplot2)
 library(AppliedPredictiveModeling)
 library(klaR)
+library(MASS)
+library(pROC)
 ```
 
 # Import and data manipulation
