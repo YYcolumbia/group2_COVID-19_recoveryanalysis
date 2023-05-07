@@ -22,7 +22,7 @@ library(caret)
 
 ## Import and data manipulation
 
-```{r}
+```{r, results='hide'}
 # Load recovery.RData environment
 load("./recovery.Rdata")
 
