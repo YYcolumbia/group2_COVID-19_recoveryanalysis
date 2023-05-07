@@ -93,6 +93,9 @@ trainData = covid_dat[rowTrain, ]
 testData = covid_dat[-rowTrain, ]
 
 ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
+ctrl2 = trainControl(method = "cv",
+                          classProbs = TRUE,
+                          summaryFunction = twoClassSummary)
 ```
 
 # Data visualization
@@ -101,7 +104,7 @@ ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
 
 ```{r}
 corr_dat = covid_dat[rowTrain,] %>% 
-  select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL')
+  dplyr::select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL')
 corrplot(cor(corr_dat), method = "circle", type = "full")
 ```
 
@@ -109,7 +112,7 @@ corrplot(cor(corr_dat), method = "circle", type = "full")
 
 ```{r}
 vis_trdat = trainData %>% 
-  select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL', 'recovery_time')
+  dplyr::select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL', 'recovery_time')
 
 theme1 = transparentTheme(trans = .4)
 trellis.par.set(theme1)

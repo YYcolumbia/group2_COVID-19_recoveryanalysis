@@ -91,7 +91,7 @@ ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
 
 ```{r}
 corr_dat = covid_dat[rowTrain,] %>% 
-  select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL')
+  dplyr::select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL')
 corrplot(cor(corr_dat), method = "circle", type = "full")
 ```
 
