@@ -23,6 +23,16 @@ library(mlbench)
 library(pROC)
 library(klaR)
 library(tidyverse)
+library(corrplot)
+library(leaps)
+library(glmnet)
+library(earth)
+library(AppliedPredictiveModeling)
+library(rpart.plot)
+library(vip)
+library(ISLR)
+library(e1071)
+library(kernlab)
 ```
 ## Import and data manipulation
 
@@ -110,19 +120,132 @@ ctrl2 = trainControl(method = "cv",
 ## Model training
 
 classification 
-- classification tree: L11
+
 - glm + penalized logistice regreesion L8
 - GAM  L8
 - MARS  L8
 - QDA  L9
 - LDA  L9
 - Navie Bayes  L9
+- classification tree: L11
 - random forest L12
 - boosting L12
 - support vecotr machines L13
 
-## LDA
+# Logistic regression and its cousins
+
+## GLM
+
+
 ```{r}
+
+set.seed(2)
+model.glm <- train(x = covid_dat2[rowTrain,],
+                   y = covid_dat$recovery_time[rowTrain],
+                   method = "glm",
+                   metric = "ROC",
+                   trControl = ctrl2)
+```
+
+## Penalized logistic regression
+
+Penalized logistic regression can be fitted using `glmnet`. We use the `train` function to select the optimal tuning parameters.
+
+```{r}
+glmnGrid <- expand.grid(.alpha = seq(0, 1, length = 21),
+                        .lambda = exp(seq(-8, -1, length = 50)))
+set.seed(2)
+model.glmn <- train(x = covid_dat2[rowTrain,],
+                   y = covid_dat$recovery_time[rowTrain],
+                    method = "glmnet",
+                    tuneGrid = glmnGrid,
+                    metric = "ROC",
+                    trControl = ctrl2)
+
+model.glmn$bestTune
+
+myCol<- rainbow(25)
+myPar <- list(superpose.symbol = list(col = myCol),
+              superpose.line = list(col = myCol))
+
+plot(model.glmn, par.settings = myPar, xTrans = function(x) log(x))
+```
+
+## GAM
+
+```{r}
+set.seed(2)
+model.gam <- train(x = covid_dat2[rowTrain,],
+                   y = covid_dat$recovery_time[rowTrain],
+                   method = "gam",
+                   metric = "ROC",
+                   trControl = ctrl2)
+
+
+model.gam$finalModel
+
+plot(model.gam$finalModel, select = 3)
+```
+
+
+## MARS
+
+```{r}
+set.seed(2)
+model.mars <- train(x = covid_dat2[rowTrain,],
+                   y = covid_dat$recovery_time[rowTrain],
+                    method = "earth",
+                    tuneGrid = expand.grid(degree = 1:4, 
+                                           nprune = 2:20),
+                    metric = "ROC",
+                    trControl = ctrl2)
+
+plot(model.mars)
+
+coef(model.mars$finalModel) 
+
+vip(model.mars$finalModel)
+```
+
+
+```{r}
+res <- resamples(list(GLM = model.glm, 
+                      GLMNET = model.glmn, 
+                      GAM = model.gam,
+                      MARS = model.mars))
+summary(res)
+
+bwplot(res, metric = "ROC")
+```
+
+## test data performance for Logistic regression and its cousins
+```{r, warning=FALSE}
+glm.pred <- predict(model.glm, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+glmn.pred <- predict(model.glmn, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+gam.pred <- predict(model.gam, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+mars.pred <- predict(model.mars, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+
+roc.glm <- roc(covid_dat$recovery_time[-rowTrain], glm.pred)
+roc.glmn <- roc(covid_dat$recovery_time[-rowTrain], glmn.pred)
+roc.gam <- roc(covid_dat$recovery_time[-rowTrain], gam.pred)
+roc.mars <- roc(covid_dat$recovery_time[-rowTrain], mars.pred)
+
+auc <- c(roc.glm$auc[1], roc.glmn$auc[1], 
+         roc.gam$auc[1], roc.mars$auc[1])
+
+modelNames <- c("glm","glmn","gam","mars")
+
+ggroc(list(roc.glm, roc.glmn, roc.gam, roc.mars), legacy.axes = TRUE) + 
+  scale_color_discrete(labels = paste0(modelNames, " (", round(auc,3),")"),
+                       name = "Models (AUC)") +
+  geom_abline(intercept = 0, slope = 1, color = "grey")
+
+```
+
+# Discriminant Analysis
+
+## LDA
+```{r,warning=FALSE}
 set.seed(2)
 
 model.lda <- train(x = covid_dat2[rowTrain,],
@@ -134,7 +257,7 @@ model.lda <- train(x = covid_dat2[rowTrain,],
 
 ## QDA
 
-```{r}
+```{r,warning=FALSE}
 set.seed(2)
 model.qda <- train(x = covid_dat2[rowTrain,],
                    y = covid_dat$recovery_time[rowTrain],
@@ -148,7 +271,7 @@ model.qda <- train(x = covid_dat2[rowTrain,],
 There is one practical issue with the NB classifier when nonparametric estimators are used. When a new data point includes a feature value that never occurs for some response class, the posterior probability can become zero. To avoid this, we increase the count of the value with a zero occurrence to a small value, so that the overall probability doesn't become zero. In practice, a value of one or two is a common choice. 
 This correction is called "Laplace Correction," and is implemented via the parameter `fL`. The parameter `adjust` adjusts the bandwidths of the kernel density estimates, and a larger value means a more flexible estimate.
 
-```{r, warning=FALSE}
+```{r, warning=FALSE,warning=FALSE}
 nbGrid <- expand.grid(usekernel = c(FALSE,TRUE),
                       fL = 1, 
                       adjust = seq(.2, 3, by = .2))
@@ -164,13 +287,13 @@ model.nb <- train(x = covid_dat2[rowTrain,],
 plot(model.nb)
 ```
 
-```{r}
+```{r,warning=FALSE}
 res <- resamples(list(LDA = model.lda, QDA = model.qda, NB = model.nb))
 summary(res)
 ```
 
-# test set performance.
-```{r}
+## test set performance for Discriminant Analysis
+```{r,warning=FALSE}
 lda.pred <- predict(model.lda, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
 nb.pred <- predict(model.nb, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
 qda.pred <- predict(model.qda, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
@@ -191,3 +314,58 @@ modelNames <- c("lda","qda","nb")
 legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)),
        col = 1:3, lwd = 2)
 ```
+
+# classification tree models
+
+
+## rpart
+
+```{r,warning=FALSE}
+
+
+set.seed(2)
+
+model.rpart = train(recovery_time ~ .,
+                  covid_dat,
+                  subset = rowTrain,
+                  method = "rpart",
+                  tuneGrid = data.frame(cp = exp(seq(-6, -3, len = 50))),
+                  trControl = ctrl2,
+                  metric = "ROC")
+
+ggplot(model.rpart, highlight = TRUE)
+
+rpart.plot(model.rpart$finalModel)
+
+```
+
+## ctree
+
+```{r,warning=FALSE}
+
+set.seed(2)
+
+
+model.ctree = train(recovery_time ~ .,
+                  covid_dat,
+                  subset = rowTrain,
+                  method = "ctree",
+                  tuneGrid = data.frame(mincriterion = 1 - exp(seq(-2, -1, length = 50))),
+                  metric = "ROC",
+                  trControl = ctrl2)
+
+ggplot(model.ctree, highlight = TRUE)
+
+plot(model.ctree$finalModel)
+```
+
+## test set performance for classification tree models
+
+```{r,warning=FALSE}
+resamp_tree <- resamples(list(rpart = model.rpart, 
+                         ctree = model.ctree))
+summary(resamp_tree)
+```
+
+
+
