@@ -118,6 +118,7 @@ featurePlot(x = vis_trdat[, 1:6],
 ```
 
 ## Boxplot
+
 ```{r,echo=FALSE}
 # Merge all boxplots
 par(mfrow = c(2, 4))

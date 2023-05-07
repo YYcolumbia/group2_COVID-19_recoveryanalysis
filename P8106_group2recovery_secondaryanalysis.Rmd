@@ -132,7 +132,6 @@ partimat(recovery_time ~ age + height + weight + bmi + SBP + LDL, data = covid_d
 ```
 
 
-
 # Model training
 
 classification 
