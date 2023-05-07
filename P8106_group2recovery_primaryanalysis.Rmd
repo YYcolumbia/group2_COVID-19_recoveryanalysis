@@ -1,5 +1,5 @@
 ---
-title: "P8106_group2_COVID-19_recoveryanalysis" 
+title: "P8106_group2recovery_primaryanalysis" 
 author: "Yimin Chen (yc4195), Yang Yi (yy3307), Qingyue Zhuo (qz2493)"
 output:
   pdf_document:
@@ -93,3 +93,5 @@ ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
 ```
 
 ## Data visualization
+
+## Model training
