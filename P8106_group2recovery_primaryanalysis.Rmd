@@ -118,6 +118,45 @@ featurePlot(x = vis_trdat[, 1:6],
 ```
 
 ## Boxplot
+```{r,echo=FALSE}
+
+par(mfrow = c(2, 4))
+par(cex.lab=1.5, cex.axis=1.3, cex.main=1.8)
+options(scipen=999)
+# 
+boxplot(recovery_time ~ gender, data = covid_dat, xlab = "Gender", ylim = c(0, 150), 
+         col = "#3366CC", boxwex = 0.5, medcol = "white", 
+        whiskcol = "gray", staplecol = "gray", outcol = "gray", font.main = 1)
+
+boxplot(recovery_time ~ race, data = covid_dat, xlab = "Race", ylim = c(0, 150), 
+       col = "#DC3912", boxwex = 0.5, medcol = "white", 
+        whiskcol = "gray", staplecol = "gray", outcol = "gray", font.main = 1)
+
+boxplot(recovery_time ~ smoking, data = covid_dat, xlab = "Smoking", ylim = c(0, 150), 
+        col = "#FF9900", boxwex = 0.5, medcol = "white", 
+        whiskcol = "gray", staplecol = "gray", outcol = "gray", font.main = 1)
+
+boxplot(recovery_time ~ hypertension, data = covid_dat, xlab = "Hypertension", ylim = c(0, 150), 
+        col = "#109618", boxwex = 0.5, medcol = "white", 
+        whiskcol = "gray", staplecol = "gray", outcol = "gray", font.main = 1)
+
+boxplot(recovery_time ~ diabetes, data = covid_dat, xlab = "Diabetes", ylim = c(0, 150), 
+         col = "#990099", boxwex = 0.5, medcol = "white", 
+        whiskcol = "gray", staplecol = "gray", outcol = "gray", font.main = 1)
+
+boxplot(recovery_time ~ vaccine, data = covid_dat, xlab = "Vaccine", ylim = c(0, 150), 
+        col = "#0099C6", boxwex = 0.5, medcol = "white", 
+        whiskcol = "gray", staplecol = "gray", outcol = "gray", font.main = 1)
+
+boxplot(recovery_time ~ severity, data = covid_dat, xlab = "Severity", ylim = c(0, 150), 
+        col = "#DD4477", boxwex = 0.5, medcol = "white", 
+        whiskcol = "gray", staplecol = "gray", outcol = "gray", font.main = 1)
+
+boxplot(recovery_time ~ study, data = covid_dat, xlab = "Study", ylim = c(0, 150), 
+         col = "#66AA00", boxwex = 0.5, medcol = "white", 
+        whiskcol = "gray", staplecol = "gray", outcol = "gray", font.main = 1)
+
+```
 
 ```{r}
 bp_gender = boxplot(recovery_time ~ gender, data = covid_dat, xlab = "Study", ylim = c(0, 150))
