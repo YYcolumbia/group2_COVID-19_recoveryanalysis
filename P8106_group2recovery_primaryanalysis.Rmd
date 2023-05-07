@@ -18,9 +18,11 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```{r, include = FALSE}
 library(tidyverse)
 library(caret)
+library(corrplot)
+library(ggplot2)
 ```
 
-## Import and data manipulation
+# Import and data manipulation
 
 ```{r, results='hide'}
 # Load recovery.RData environment
@@ -80,18 +82,79 @@ rowTrain = createDataPartition(y = covid_dat$recovery_time, p = 0.7, list = FALS
 trainData = covid_dat[rowTrain, ]
 testData = covid_dat[-rowTrain, ]
 
-# matrix of predictors
-x1 = covid_dat2[rowTrain,]
-# vector of response
-y1 = covid_dat$recovery_time[rowTrain]
-# matrix of predictors
-x2 = covid_dat2[-rowTrain,]
-# vector of response
-y2 = covid_dat$recovery_time[-rowTrain]
-
 ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
 ```
 
-## Data visualization
+# Data visualization
 
-## Model training
+## Correlation plot
+
+```{r}
+corr_dat = covid_dat[rowTrain,] %>% 
+  select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL')
+corrplot(cor(corr_dat), method = "circle", type = "full")
+```
+
+## Feature plot
+
+```{r}
+vis_trdat = trainData %>% 
+  select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL', 'recovery_time')
+
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+
+featurePlot(x = vis_trdat[, 1:6],
+            y = vis_trdat[, 7],
+            plot = "scatter",
+            span = 0.5,
+            labels = c("Predictors", "Recovery Time"),
+            type = c("p", "smooth"))
+```
+
+## Boxplot
+
+```{r}
+bp_gender = boxplot(recovery_time ~ gender, data = covid_dat, xlab = "Study", ylim = c(0, 150))
+```
+
+```{r}
+bp_race = boxplot(recovery_time ~ race, data = covid_dat, xlab = "Study", ylim = c(0, 150))
+```
+
+```{r}
+bp_smoking = boxplot(recovery_time ~ smoking, data = covid_dat, xlab = "Study", ylim = c(0, 150))
+```
+
+```{r}
+bp_hypertension = boxplot(recovery_time ~ hypertension, data = covid_dat, xlab = "Study", ylim = c(0, 150))
+```
+
+```{r}
+bp_diabetes = boxplot(recovery_time ~ diabetes, data = covid_dat, xlab = "Study", ylim = c(0, 150))
+```
+
+```{r}
+bp_vaccine = boxplot(recovery_time ~ vaccine, data = covid_dat, xlab = "Study", ylim = c(0, 150))
+```
+
+```{r}
+bp_severity = boxplot(recovery_time ~ severity, data = covid_dat, xlab = "Study", ylim = c(0, 150))
+```
+
+```{r}
+bp_study = boxplot(recovery_time ~ study, data = covid_dat, xlab = "Study", ylim = c(0, 150))
+```
+
+```{r}
+# Merge all boxplots
+
+```
+
+
+# Model training
