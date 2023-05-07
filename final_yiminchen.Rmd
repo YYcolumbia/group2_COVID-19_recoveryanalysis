@@ -98,6 +98,36 @@ ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
 
 # regression tree: L11
 
+```{r}
+set.seed(2)
+
+#Build a regression tree on the training data to predict the respons
+rpart.fit <- train(recovery_time ~ . ,
+                    covid_dat[rowTrain,],
+                   method = "rpart",
+                   tuneGrid = data.frame(cp = exp(seq(-6,-2, length = 50))),
+                   trControl =ctrl1,
+                   preProcess = c("center", "scale"))
+
+rpart.fit$bestTune
+
+
+#plot of the tree
+ggplot(rpart.fit, highlight = TRUE)
+
+rpart.plot(rpart.fit$finalModel)
+
+# Report the variable importance
+summary(rpart.fit$finalModel, las = 2, cBars = 19, cex.names = 0.6)
+plot(varImp(rpart.fit, scale = TRUE))
+
+#test error
+pred.rf <- predict(rpart.fit, newdata = covid_dat[-rowTrain,])
+RMSE(pred.rf, covid_dat$recovery_time[-rowTrain])
+confusionMatrix(pred.rf,reference = covid_dat$recovery_time[-rowTrain])
+```
+
+
 # boosting L12
 ```{r}
 set.seed(2)
@@ -122,5 +152,7 @@ summary(gbm.fit$finalModel, las = 2, cBars = 19, cex.names = 0.6)
 #test error
 pred.gbm <- predict(gbm.fit, newdata = covid_dat[-rowTrain,])
 RMSE(pred.gbm, covid_dat$recovery_time[-rowTrain])
+
+confusionMatrix(pred.gbm,reference = covid_dat$recovery_time[-rowTrain])
 ```
 

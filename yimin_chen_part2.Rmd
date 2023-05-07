@@ -15,11 +15,15 @@ output:
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-```{r, include = FALSE}
-library(tidyverse)
-library(caret)
-```
 
+```{r, echo = T, message = FALSE, results='hide', warning=FALSE,include = FALSE}
+library(caret)
+library(MASS)
+library(mlbench)
+library(pROC)
+library(klaR)
+library(tidyverse)
+```
 ## Import and data manipulation
 
 ```{r, results='hide'}
@@ -78,7 +82,7 @@ dat2 =
 covid_dat = rbind(dat1, dat2) %>% 
   unique()
 
-covid_dat2 = model.matrix(recovery_time ~ ., covid_dat)[, -1]
+covid_dat2 = model.matrix(recovery_time ~ ., covid_dat)[, -1] #ignore intercept
 
 # Partition dataset into two parts: training data (70%) and test data (30%)
 rowTrain = createDataPartition(y = covid_dat$recovery_time, p = 0.7, list = FALSE)
@@ -117,5 +121,73 @@ classification
 - boosting L12
 - support vecotr machines L13
 
+## LDA
+```{r}
+set.seed(2)
+
+model.lda <- train(x = covid_dat2[rowTrain,],
+                   y = covid_dat$recovery_time[rowTrain],
+                   method = "lda",
+                   metric = "ROC",
+                   trControl = ctrl2)
+```
+
+## QDA
+
+```{r}
+set.seed(2)
+model.qda <- train(x = covid_dat2[rowTrain,],
+                   y = covid_dat$recovery_time[rowTrain],
+                   method = "qda",
+                   metric = "ROC",
+                   trControl = ctrl2)
+```
+
+## Naive Bayes (NB)
+
+There is one practical issue with the NB classifier when nonparametric estimators are used. When a new data point includes a feature value that never occurs for some response class, the posterior probability can become zero. To avoid this, we increase the count of the value with a zero occurrence to a small value, so that the overall probability doesn't become zero. In practice, a value of one or two is a common choice. 
+This correction is called "Laplace Correction," and is implemented via the parameter `fL`. The parameter `adjust` adjusts the bandwidths of the kernel density estimates, and a larger value means a more flexible estimate.
+
+```{r, warning=FALSE}
+nbGrid <- expand.grid(usekernel = c(FALSE,TRUE),
+                      fL = 1, 
+                      adjust = seq(.2, 3, by = .2))
+
+set.seed(2)
+model.nb <- train(x = covid_dat2[rowTrain,],
+                  y = covid_dat$recovery_time[rowTrain],
+                  method = "nb",
+                  tuneGrid = nbGrid,
+                  metric = "ROC",
+                  trControl = ctrl2)
+
+plot(model.nb)
+```
+
+```{r}
+res <- resamples(list(LDA = model.lda, QDA = model.qda, NB = model.nb))
+summary(res)
+```
+
+# test set performance.
+```{r}
+lda.pred <- predict(model.lda, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+nb.pred <- predict(model.nb, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+qda.pred <- predict(model.qda, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
 
 
+roc.lda <- roc(covid_dat$recovery_time[-rowTrain], lda.pred)
+roc.nb <- roc(covid_dat$recovery_time[-rowTrain], nb.pred)
+roc.qda <- roc(covid_dat$recovery_time[-rowTrain], qda.pred)
+
+
+auc <- c(roc.lda$auc[1], roc.qda$auc[1], roc.nb$auc[1])
+
+plot(roc.lda, legacy.axes = TRUE)
+plot(roc.qda, col = 2, add = TRUE)
+plot(roc.nb, col = 3, add = TRUE)
+
+modelNames <- c("lda","qda","nb")
+legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)),
+       col = 1:3, lwd = 2)
+```
