@@ -1,0 +1,95 @@
+---
+title: "P8106_midterm_yy3307" 
+author: "Yimin Chen (yc4195), Yang Yi (yy3307), Qingyue Zhuo (qz2493)"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 2
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '2'
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r, include = FALSE}
+library(tidyverse)
+library(caret)
+```
+
+## Import and data manipulation
+
+```{r}
+# Load recovery.RData environment
+load("./recovery.Rdata")
+
+dat %>% na.omit()
+
+# dat1 draw a random sample of 2000 participants Uni:3307
+set.seed(3307)
+
+dat1 = dat[sample(1:10000, 2000),]
+
+dat1 = 
+  dat1[, -1] %>% 
+  mutate(
+    gender = as.factor(gender),
+    race = as.factor(race),
+    smoking = as.factor(smoking),
+    hypertension = as.factor(hypertension),
+    diabetes = as.factor(diabetes),
+    vaccine = as.factor(vaccine),
+    severity = as.factor(severity),
+    study = as.factor(
+      case_when(study == "A" ~ 1, study == "B" ~ 2, study == "C" ~ 3)
+      )
+    )
+
+# dat2 draw a random sample of 2000 participants Uni:2493
+set.seed(2493)
+
+dat2 = dat[sample(1:10000, 2000),]
+
+dat2 = 
+  dat2[, -1] %>% 
+  mutate(
+    gender = as.factor(gender),
+    race = as.factor(race),
+    smoking = as.factor(smoking),
+    hypertension = as.factor(hypertension),
+    diabetes = as.factor(diabetes),
+    vaccine = as.factor(vaccine),
+    severity = as.factor(severity),
+    study = as.factor(
+      case_when(study == "A" ~ 1, study == "B" ~ 2, study == "C" ~ 3)
+      )
+    )
+
+# Merged dataset with unique observation
+covid_dat = rbind(dat1, dat2) %>% 
+  unique()
+
+covid_dat2 = model.matrix(recovery_time ~ ., covid_dat)[, -1]
+
+# Partition dataset into two parts: training data (70%) and test data (30%)
+rowTrain = createDataPartition(y = covid_dat$recovery_time, p = 0.7, list = FALSE)
+
+trainData = covid_dat[rowTrain, ]
+testData = covid_dat[-rowTrain, ]
+
+# matrix of predictors
+x1 = covid_dat2[rowTrain,]
+# vector of response
+y1 = covid_dat$recovery_time[rowTrain]
+# matrix of predictors
+x2 = covid_dat2[-rowTrain,]
+# vector of response
+y2 = covid_dat$recovery_time[-rowTrain]
+
+ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
+```
+
+## Data visualization
