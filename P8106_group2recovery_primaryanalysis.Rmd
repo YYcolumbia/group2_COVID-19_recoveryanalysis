@@ -20,6 +20,15 @@ library(tidyverse)
 library(caret)
 library(corrplot)
 library(ggplot2)
+library(AppliedPredictiveModeling)
+library(klaR)
+library(MASS)
+library(pROC)
+library(rpart.plot)
+library(randomForest)
+library(ranger)
+library(glmnet)
+library(earth)
 ```
 
 # Import and data manipulation
@@ -99,7 +108,7 @@ corrplot(cor(corr_dat), method = "circle", type = "full")
 
 ```{r}
 vis_trdat = trainData %>% 
-  select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL', 'recovery_time')
+  dplyr::select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL', 'recovery_time')
 
 theme1 <- trellis.par.get()
 theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
@@ -191,7 +200,144 @@ bp_severity = boxplot(recovery_time ~ severity, data = trainData, xlab = "Study"
 bp_study = boxplot(recovery_time ~ study, data = trainData, xlab = "Study", ylim = c(0, 150))
 ```
 
-
-
-
 # Model training
+
+## GAM
+```{r}
+set.seed(2)
+gam.fit = train(x = covid_dat2[rowTrain,],
+                y = covid_dat$recovery_time[rowTrain],
+                method = "gam",
+                tuneGrid = data.frame(method = "GCV.Cp", select = c(TRUE,FALSE)),
+                trControl = ctrl1)
+
+gam.fit$bestTune
+gam.fit$finalModel
+
+# test error
+pred.gam = predict(gam.fit, newdata = covid_dat2[-rowTrain,])
+gam.RMSE = mean((pred.gam - covid_dat$recovery_time[-rowTrain])^2)
+gam.RMSE
+```
+
+## MARS
+```{r}
+mars_grid = expand.grid(degree = 1:3,
+                        nprune = 2:15)
+
+set.seed(2)
+mars.fit = train(x = covid_dat2[rowTrain,],
+                 y = covid_dat$recovery_time[rowTrain],
+                 method = "earth",
+                 tuneGrid = mars_grid,
+                 trControl = ctrl1)
+
+ggplot(mars.fit)
+mars.fit$bestTune
+mars.fit$finalModel
+
+# test error
+pred.mars = predict(mars.fit, newdata = covid_dat2[-rowTrain,])
+mars.RMSE = mean((pred.mars - covid_dat$recovery_time[-rowTrain])^2)
+mars.RMSE
+```
+
+
+## Regression tree
+```{r}
+set.seed(2)
+
+#Build a regression tree on the training data to predict the respons
+rpart.fit = train(recovery_time ~ . ,
+                  covid_dat[rowTrain,],
+                  method = "rpart",
+                  tuneGrid = data.frame(cp = exp(seq(-6,-2, length = 50))),
+                  trControl =ctrl1,
+                  preProcess = c("center", "scale"))
+
+rpart.fit$bestTune
+
+
+#plot of the tree
+ggplot(rpart.fit, highlight = TRUE)
+
+rpart.plot(rpart.fit$finalModel)
+
+# Report the variable importance
+summary(rpart.fit$finalModel, las = 2, cBars = 19, cex.names = 0.6)
+plot(varImp(rpart.fit, scale = TRUE))
+
+## rpart does not have RMSE
+```
+
+## Random Forest
+```{r}
+ctrlrf = trainControl(method = "cv")
+
+# Using Caret package to build random forest plot
+rf.grid = expand.grid(mtry = 1:16,
+                      splitrule = "variance",
+                      min.node.size = 1:6)
+
+set.seed(2)
+rf.fit = train(recovery_time ~ .,
+               covid_dat[rowTrain,],
+               method = "ranger",
+               tuneGrid = rf.grid,
+               trControl = ctrlrf)
+
+ggplot(rf.fit, highlight = TRUE)
+
+# Best tunning parameter
+rf.fit$bestTune
+
+# Variable importance
+rf2.final.per = ranger(recovery_time ~ .,
+                covid_dat[rowTrain,],
+                mtry = rf.fit$bestTune[[1]],
+                splitrule = "variance",
+                min.node.size = rf.fit$bestTune[[3]],
+                importance = "permutation",
+                scale.permutation.importance = TRUE)
+
+barplot(sort(ranger::importance(rf2.final.per), decreasing = FALSE),
+        las = 2, horiz = TRUE, cex.names = 0.7,
+        col = colorRampPalette(colors = c("cyan","blue"))(16))
+
+# test error
+
+set.seed(2)
+rffit_pred = predict(rf.fit, newdata = covid_dat[-rowTrain,])
+rffit.RMSE = RMSE(rffit_pred, covid_dat$recovery_time[-rowTrain])
+rffit.RMSE
+```
+
+## Boosting
+```{r}
+ctrlboost = trainControl(method = "cv")
+
+gbm_grid = expand.grid(n.trees = c(100, 250, 500, 1000, 2000, 3000),
+                       interaction.depth = 1:3,
+                       shrinkage = c(0.0005,0.001,0.002),
+                       n.minobsinnode = 1)
+set.seed(2)
+gbm.fit = train(recovery_time ~ . ,
+               covid_dat[rowTrain,],
+               tuneGrid = gbm_grid,
+               trControl = ctrlboost,
+               method = "gbm",
+               verbose = FALSE)
+
+gbm.fit$bestTune
+ggplot(gbm.fit, highlight = TRUE)
+# Report the variable importance
+summary(gbm.fit$finalModel, las = 2, cBars = 19, cex.names = 0.6)
+#test error
+set.seed(2)
+pred.gbm = predict(gbm.fit, newdata = covid_dat[-rowTrain,])
+gbm.RMSE = RMSE(pred.gbm, covid_dat$recovery_time[-rowTrain])
+gbm.RMSE
+```
+
+# Model selection
+
