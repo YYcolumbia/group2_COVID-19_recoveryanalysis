@@ -94,6 +94,7 @@ covid_dat = rbind(dat1, dat2) %>%
 
 covid_dat2 = model.matrix(recovery_time ~ ., covid_dat)[, -1] #ignore intercept
 
+
 # Partition dataset into two parts: training data (70%) and test data (30%)
 rowTrain = createDataPartition(y = covid_dat$recovery_time, p = 0.7, list = FALSE)
 
@@ -369,3 +370,142 @@ summary(resamp_tree)
 
 
 
+## Support Vector Machines
+```{r,warning=FALSE}
+set.seed(2)
+# kernal linear
+model.svml = tune.svm(recovery_time ~ .,
+                      data = covid_dat[rowTrain, ],
+                      kernel = "linear",
+                      cost = exp(seq(-5, 2, len = 50)),
+                      scale = TRUE)
+
+plot(model.svml)
+#best.parameters
+model.svml$best.parameters
+best_linear_svc=model.svml$best.model
+summary(model.svml)
+
+#test error
+linear_test_preds = predict(best_linear_svc, newdata = covid_dat[-rowTrain, ])
+confusionMatrix(data = linear_test_preds, 
+                reference = covid_dat$recovery_time[-rowTrain])
+
+```
+
+```{r,warning=FALSE}
+
+#radial kernel
+set.seed(2)
+
+model.svmr = tune.svm(recovery_time ~ .,
+                      data = covid_dat[rowTrain, ],
+                      kernel = "radial",
+                      cost = exp(seq(-3, 8, len = 50)),
+                      gamma = exp(seq(-10, 4, len = 20)),
+                      scale = TRUE)
+
+plot(model.svmr, transform.y = log, transform.x = log, color.palette = terrain.colors)
+best_radial = model.svmr$best.parameters
+best_radial
+best_radial_svm = model.svmr$best.model
+summary(best_radial_svm)
+
+# test
+radial_test_preds = predict(best_radial_svm, newdata = covid_dat[-rowTrain, ])
+confusionMatrix(data = radial_test_preds, reference = covid_dat$recovery_time[-rowTrain])
+
+```
+
+###  test data performance of SVM methods
+
+```{r,warning=FALSE}
+resamp <- resamples(list(svml = model.svml, 
+                         svmr = model.svmr, 
+                        ))
+bwplot(resamp)
+```
+
+
+```{r,warning=FALSE}
+pred.svml <- predict(model.svml, newdata = covid_dat2[-rowTrain,])
+pred.svmr <- predict(model.svmr, newdata = covid_dat2[-rowTrain,])
+
+confusionMatrix(data = pred.svml, 
+                reference = covid_dat$recovery_time[-rowTrain])
+
+confusionMatrix(data = pred.svmr, 
+                reference = covid_dat$recovery_time[-rowTrain])
+```
+
+
+```{r resample, cache=TRUE,warning=FALSE}
+res <- resamples(list(GLM = model.glm, GLMNET = model.glmn, GAM = model.gam, MARS = model.mars, CTREE = model.ctree, RPART = model.rpart, LDA = model.lda, QDA = model.qda, NB = model.nb,SVML=model.svml,SVMR=model.svmr))
+trainROC <- bwplot(res, metric = "ROC")
+summary(res)
+```
+
+
+```{r, warning=FALSE}
+
+#pred
+glm.pred <- predict(model.glm, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+glmn.pred <- predict(model.glmn, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+gam.pred <- predict(model.gam, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+mars.pred <- predict(model.mars, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+
+ctree.pred <- predict(model.ctree, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+rpart.pred <- predict(model.rpart, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+
+lda.pred <- predict(model.lda, newdata =covid_dat2[-rowTrain,], type = "prob")[,2]
+qda.pred <- predict(model.qda, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+nb.pred <- predict(model.nb, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+
+svml.pred <- predict(model.svml, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+svmr.pred <- predict(model.svmr, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+
+#roc
+roc.glm <- roc(covid_dat$recovery_time[-rowTrain], glm.pred)
+roc.glmn <- roc(covid_dat$recovery_time[-rowTrain], glmn.pred)
+roc.gam <- roc(covid_dat$recovery_time[-rowTrain], gam.pred)
+roc.mars <- roc(covid_dat$recovery_time[-rowTrain], mars.pred)
+
+roc.ctree <- roc(covid_dat$recovery_time[-rowTrain], ctree.pred)
+roc.rpart <- roc(covid_dat$recovery_time[-rowTrain], rpart.pred)
+
+roc.lda <- roc(covid_dat$recovery_time[-rowTrain], lda.pred)
+roc.qda <- roc(covid_dat$recovery_time[-rowTrain], qda.pred)
+roc.nb <- roc(covid_dat$recovery_time[-rowTrain], nb.pred)
+
+roc.svml <- roc(covid_dat$recovery_time[-rowTrain], svml.pred)
+roc.svmr <- roc(covid_dat$recovery_time[-rowTrain], svmr.pred)
+
+
+auc <- c(roc.glm$auc[1], roc.glmn$auc[1], 
+         roc.gam$auc[1], roc.mars$auc[1], 
+         roc.lda$auc[1],roc.qda$auc[1], roc.nb$auc[1],
+         roc.ctree$auc[1], roc.rpart$auc[1], 
+         roc.svml$auc[1], roc.svmr$auc[1]
+         )
+
+plot(roc.glm, legacy.axes = TRUE)
+plot(roc.glmn, col = 2, add = TRUE)
+
+plot(roc.gam, col = 3, add = TRUE)
+plot(roc.mars, col = 4, add = TRUE)
+
+plot(roc.lda, col = 5, add = TRUE)
+plot(roc.qda, col = 6, add = TRUE)
+plot(roc.nb, col = 7, add = TRUE)
+
+plot(roc.ctree, col = 8, add = TRUE)
+plot(roc.rpart, col = 9, add = TRUE)
+
+plot(roc.svml, col = 10, add = TRUE)
+plot(roc.svmr, col = 11, add = TRUE)
+
+
+modelNames <- c("glm","glmn","gam","mars","lda","qda","nb", "ctree",  "rpart","svm (linear kernel)", "svm (radial kernel)")
+legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)),
+       col = 1:11, lwd = 2)
+```
