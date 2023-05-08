@@ -33,6 +33,16 @@ library(vip)
 library(ISLR)
 library(e1071)
 library(kernlab)
+library(ggplot2)
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
 ```
 ## Import and data manipulation
 
@@ -374,21 +384,53 @@ summary(resamp_tree)
 ```{r,warning=FALSE}
 set.seed(2)
 # kernal linear
-model.svml = tune.svm(recovery_time ~ .,
-                      data = covid_dat[rowTrain, ],
-                      kernel = "linear",
-                      cost = exp(seq(-5, 2, len = 50)),
-                      scale = TRUE)
 
-plot(model.svml)
-#best.parameters
-model.svml$best.parameters
-best_linear_svc=model.svml$best.model
-summary(model.svml)
+#model.svml <- train(recovery_time ~ .,
+                  #data = covid_dat[rowTrain, ],
+                  #method = "svmLinear",
+                  #tuneGrid = data.frame(C = exp(seq(-2,5,len=5))),
+                  #trControl = ctrl2)
+
+
+model.svml <- train(recovery_time ~ .,
+                  data = covid_dat[rowTrain, ],
+                  method = "svmLinear2",
+                  preProcess = c("center", "scale"),
+                  tuneGrid = data.frame(cost = exp(seq(-3,2,len = 50))),
+                  trControl = ctrl2)
+
+plot(model.svml, highlight = TRUE)
+
+model.svml$bestTune
+model.svml$finalModel
 
 #test error
-linear_test_preds = predict(best_linear_svc, newdata = covid_dat[-rowTrain, ])
+linear_test_preds = predict(model.svml, newdata = covid_dat[-rowTrain, ])
 confusionMatrix(data = linear_test_preds, 
+                reference = covid_dat$recovery_time[-rowTrain])
+
+```
+
+```{r,warning=FALSE}
+svmr.grid <- expand.grid(C = exp(seq(-4,4,len=20)),
+                         sigma = exp(seq(-4,0,len=10)))
+#radial kernel
+set.seed(2)
+
+model.svmr <- train(recovery_time ~ .,
+                  data = covid_dat[rowTrain, ],
+                  method = "svmRadialSigma",
+                  preProcess = c("center", "scale"),
+                  tuneGrid = svmr.grid,
+                  trControl = ctrl2)
+
+myCol<- rainbow(20)
+myPar <- list(superpose.symbol = list(col = myCol),
+              superpose.line = list(col = myCol))
+ggplot(model.svmr, highlight = TRUE, par.settings = myPar)
+# test error
+radial_test_preds = predict(model.svmr, newdata = covid_dat[-rowTrain, ])
+confusionMatrix(data = radial_test_preds , 
                 reference = covid_dat$recovery_time[-rowTrain])
 
 ```
@@ -396,40 +438,35 @@ confusionMatrix(data = linear_test_preds,
 ```{r,warning=FALSE}
 
 #radial kernel
-set.seed(2)
+#set.seed(2)
 
-model.svmr = tune.svm(recovery_time ~ .,
-                      data = covid_dat[rowTrain, ],
-                      kernel = "radial",
-                      cost = exp(seq(-3, 8, len = 50)),
-                      gamma = exp(seq(-10, 4, len = 20)),
-                      scale = TRUE)
+#model.svmr <- tune.svm(recovery_time ~ .,
+                  #data = covid_dat[rowTrain, ],
+                  #kernel = "radial",
+                        #cost = exp(seq(-1,5,len=20)),
+                        #gamma = exp(seq(-4,3,len=20)))
 
-plot(model.svmr, transform.y = log, transform.x = log, color.palette = terrain.colors)
-best_radial = model.svmr$best.parameters
-best_radial
-best_radial_svm = model.svmr$best.model
-summary(best_radial_svm)
-
-# test
-radial_test_preds = predict(best_radial_svm, newdata = covid_dat[-rowTrain, ])
-confusionMatrix(data = radial_test_preds, reference = covid_dat$recovery_time[-rowTrain])
+#plot(model.svmr, transform.y = log, transform.x = log,
+#color.palette = terrain.colors)
+# test error
+#radial_test_preds = predict(model.svmr, newdata = covid_dat[-rowTrain, ])
+#confusionMatrix(data = radial_test_preds , 
+                #reference = covid_dat$recovery_time[-rowTrain])
 
 ```
-
 ###  test data performance of SVM methods
 
 ```{r,warning=FALSE}
 resamp <- resamples(list(svml = model.svml, 
-                         svmr = model.svmr, 
+                         svmr = model.svmr 
                         ))
 bwplot(resamp)
 ```
 
 
 ```{r,warning=FALSE}
-pred.svml <- predict(model.svml, newdata = covid_dat2[-rowTrain,])
-pred.svmr <- predict(model.svmr, newdata = covid_dat2[-rowTrain,])
+pred.svml <- predict(model.svml, newdata = covid_dat[-rowTrain,])
+pred.svmr <- predict(model.svmr, newdata = covid_dat[-rowTrain,])
 
 confusionMatrix(data = pred.svml, 
                 reference = covid_dat$recovery_time[-rowTrain])
@@ -454,15 +491,15 @@ glmn.pred <- predict(model.glmn, newdata = covid_dat2[-rowTrain,], type = "prob"
 gam.pred <- predict(model.gam, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
 mars.pred <- predict(model.mars, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
 
-ctree.pred <- predict(model.ctree, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
-rpart.pred <- predict(model.rpart, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+ctree.pred <- predict(model.ctree, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
+rpart.pred <- predict(model.rpart, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
 
 lda.pred <- predict(model.lda, newdata =covid_dat2[-rowTrain,], type = "prob")[,2]
 qda.pred <- predict(model.qda, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
 nb.pred <- predict(model.nb, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
 
-svml.pred <- predict(model.svml, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
-svmr.pred <- predict(model.svmr, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+svml.pred <- predict(model.svml, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
+svmr.pred <- predict(model.svmr, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
 
 #roc
 roc.glm <- roc(covid_dat$recovery_time[-rowTrain], glm.pred)
