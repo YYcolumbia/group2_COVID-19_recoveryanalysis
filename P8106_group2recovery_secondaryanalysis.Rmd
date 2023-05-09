@@ -15,15 +15,38 @@ output:
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-```{r, include = FALSE}
-library(tidyverse)
+
+```{r, echo = T, message = FALSE, results='hide', warning=FALSE,include = FALSE}
 library(caret)
-library(corrplot)
-library(ggplot2)
-library(AppliedPredictiveModeling)
-library(klaR)
 library(MASS)
+library(mlbench)
 library(pROC)
+library(klaR)
+library(tidyverse)
+library(corrplot)
+library(leaps)
+library(glmnet)
+library(earth)
+library(AppliedPredictiveModeling)
+library(rpart.plot)
+library(vip)
+library(ISLR)
+library(e1071)
+library(kernlab)
+library(ggplot2)
+library(parallel)
+library(doParallel)
+
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
 ```
 
 # Import and data manipulation
@@ -132,22 +155,122 @@ partimat(recovery_time ~ age + height + weight + bmi + SBP + LDL, data = covid_d
 ```
 
 
-# Model training
+## Model training
 
-classification 
-- classification tree: L11
-- glm + penalized logistice regreesion L8
-- GAM  L8
-- MARS  L8
-- QDA  L9
-- LDA  L9
-- Navie Bayes  L9
-- random forest L12
-- boosting L12
-- support vecotr machines L13
+# Logistic regression and its cousins
+
+## GLM
+
+
+```{r}
+
+set.seed(2)
+model.glm <- train(x = covid_dat2[rowTrain,],
+                   y = covid_dat$recovery_time[rowTrain],
+                   method = "glm",
+                   metric = "ROC",
+                   trControl = ctrl2)
+```
+
+## Penalized logistic regression
+
+Penalized logistic regression can be fitted using `glmnet`. We use the `train` function to select the optimal tuning parameters.
+
+```{r}
+glmnGrid <- expand.grid(.alpha = seq(0, 1, length = 21),
+                        .lambda = exp(seq(-8, -1, length = 50)))
+set.seed(2)
+model.glmn <- train(x = covid_dat2[rowTrain,],
+                   y = covid_dat$recovery_time[rowTrain],
+                    method = "glmnet",
+                    tuneGrid = glmnGrid,
+                    metric = "ROC",
+                    trControl = ctrl2)
+
+model.glmn$bestTune
+
+myCol<- rainbow(25)
+myPar <- list(superpose.symbol = list(col = myCol),
+              superpose.line = list(col = myCol))
+
+plot(model.glmn, par.settings = myPar, xTrans = function(x) log(x))
+```
+
+## GAM
+
+```{r}
+set.seed(2)
+model.gam <- train(x = covid_dat2[rowTrain,],
+                   y = covid_dat$recovery_time[rowTrain],
+                   method = "gam",
+                   metric = "ROC",
+                   trControl = ctrl2)
+
+
+model.gam$finalModel
+
+plot(model.gam$finalModel, select = 3)
+```
+
+
+## MARS
+
+```{r}
+set.seed(2)
+model.mars <- train(x = covid_dat2[rowTrain,],
+                   y = covid_dat$recovery_time[rowTrain],
+                    method = "earth",
+                    tuneGrid = expand.grid(degree = 1:4, 
+                                           nprune = 2:20),
+                    metric = "ROC",
+                    trControl = ctrl2)
+
+plot(model.mars)
+
+coef(model.mars$finalModel) 
+
+vip(model.mars$finalModel)
+```
+
+
+```{r}
+res <- resamples(list(GLM = model.glm, 
+                      GLMNET = model.glmn, 
+                      GAM = model.gam,
+                      MARS = model.mars))
+summary(res)
+
+bwplot(res, metric = "ROC")
+```
+
+## test data performance for Logistic regression and its cousins
+```{r, warning=FALSE}
+glm.pred <- predict(model.glm, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+glmn.pred <- predict(model.glmn, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+gam.pred <- predict(model.gam, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+mars.pred <- predict(model.mars, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+
+roc.glm <- roc(covid_dat$recovery_time[-rowTrain], glm.pred)
+roc.glmn <- roc(covid_dat$recovery_time[-rowTrain], glmn.pred)
+roc.gam <- roc(covid_dat$recovery_time[-rowTrain], gam.pred)
+roc.mars <- roc(covid_dat$recovery_time[-rowTrain], mars.pred)
+
+auc <- c(roc.glm$auc[1], roc.glmn$auc[1], 
+         roc.gam$auc[1], roc.mars$auc[1])
+
+modelNames <- c("glm","glmn","gam","mars")
+
+ggroc(list(roc.glm, roc.glmn, roc.gam, roc.mars), legacy.axes = TRUE) + 
+  scale_color_discrete(labels = paste0(modelNames, " (", round(auc,3),")"),
+                       name = "Models (AUC)") +
+  geom_abline(intercept = 0, slope = 1, color = "grey")
+
+```
+
+# Discriminant Analysis
 
 ## LDA
-```{r}
+```{r,warning=FALSE}
 set.seed(2)
 
 model.lda <- train(x = covid_dat2[rowTrain,],
@@ -159,7 +282,7 @@ model.lda <- train(x = covid_dat2[rowTrain,],
 
 ## QDA
 
-```{r}
+```{r,warning=FALSE}
 set.seed(2)
 model.qda <- train(x = covid_dat2[rowTrain,],
                    y = covid_dat$recovery_time[rowTrain],
@@ -173,7 +296,7 @@ model.qda <- train(x = covid_dat2[rowTrain,],
 There is one practical issue with the NB classifier when nonparametric estimators are used. When a new data point includes a feature value that never occurs for some response class, the posterior probability can become zero. To avoid this, we increase the count of the value with a zero occurrence to a small value, so that the overall probability doesn't become zero. In practice, a value of one or two is a common choice. 
 This correction is called "Laplace Correction," and is implemented via the parameter `fL`. The parameter `adjust` adjusts the bandwidths of the kernel density estimates, and a larger value means a more flexible estimate.
 
-```{r, warning=FALSE}
+```{r, warning=FALSE,warning=FALSE}
 nbGrid <- expand.grid(usekernel = c(FALSE,TRUE),
                       fL = 1, 
                       adjust = seq(.2, 3, by = .2))
@@ -189,13 +312,13 @@ model.nb <- train(x = covid_dat2[rowTrain,],
 plot(model.nb)
 ```
 
-```{r}
+```{r,warning=FALSE}
 res <- resamples(list(LDA = model.lda, QDA = model.qda, NB = model.nb))
 summary(res)
 ```
 
-## test set performance.
-```{r}
+## test set performance for Discriminant Analysis
+```{r,warning=FALSE}
 lda.pred <- predict(model.lda, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
 nb.pred <- predict(model.nb, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
 qda.pred <- predict(model.qda, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
@@ -215,4 +338,258 @@ plot(roc.nb, col = 3, add = TRUE)
 modelNames <- c("lda","qda","nb")
 legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)),
        col = 1:3, lwd = 2)
+```
+
+# classification tree models
+
+
+## rpart
+
+```{r,warning=FALSE}
+
+num_cores <- detectCores() 
+cl <- makePSOCKcluster(num_cores)
+registerDoParallel(cl)
+set.seed(2)
+
+model.rpart = train(recovery_time ~ .,
+                  covid_dat,
+                  subset = rowTrain,
+                  method = "rpart",
+                  tuneGrid = data.frame(cp = exp(seq(-6, -3, len = 50))),
+                  trControl = ctrl2,
+                  metric = "ROC")
+
+ggplot(model.rpart, highlight = TRUE)
+
+rpart.plot(model.rpart$finalModel)
+stopCluster(cl)
+registerDoSEQ()
+```
+
+## ctree
+
+```{r,warning=FALSE}
+num_cores <- detectCores() 
+cl <- makePSOCKcluster(num_cores)
+registerDoParallel(cl)
+set.seed(2)
+
+
+model.ctree = train(recovery_time ~ .,
+                  covid_dat,
+                  subset = rowTrain,
+                  method = "ctree",
+                  tuneGrid = data.frame(mincriterion = 1 - exp(seq(-2, -1, length = 50))),
+                  metric = "ROC",
+                  trControl = ctrl2)
+
+ggplot(model.ctree, highlight = TRUE)
+
+plot(model.ctree$finalModel)
+stopCluster(cl)
+registerDoSEQ()
+```
+
+## test set performance for classification tree models
+
+```{r,warning=FALSE}
+resamp_tree <- resamples(list(rpart = model.rpart, 
+                         ctree = model.ctree))
+summary(resamp_tree)
+```
+
+
+
+# Support Vector Machines
+```{r,warning=FALSE}
+num_cores <- detectCores() 
+cl <- makePSOCKcluster(num_cores)
+registerDoParallel(cl)
+set.seed(2)
+# kernal linear
+
+#model.svml <- train(recovery_time ~ .,
+                  #data = covid_dat[rowTrain, ],
+                  #method = "svmLinear",
+                  #tuneGrid = data.frame(C = exp(seq(-2,5,len=5))),
+                  #trControl = ctrl2)
+
+
+model.svml <- train(recovery_time ~ .,
+                  data = covid_dat[rowTrain, ],
+                  method = "svmLinear2",
+                  preProcess = c("center", "scale"),
+                  tuneGrid = data.frame(cost = exp(seq(-3,2,len = 50))),
+                  trControl = ctrl2)
+
+plot(model.svml, highlight = TRUE)
+
+model.svml$bestTune
+model.svml$finalModel
+
+#test error
+linear_test_preds = predict(model.svml, newdata = covid_dat[-rowTrain, ])
+confusionMatrix(data = linear_test_preds, 
+                reference = covid_dat$recovery_time[-rowTrain])
+stopCluster(cl)
+registerDoSEQ()
+
+```
+
+```{r,warning=FALSE}
+num_cores <- detectCores() 
+cl <- makePSOCKcluster(num_cores)
+registerDoParallel(cl)
+svmr.grid <- expand.grid(C = exp(seq(-4,4,len=20)),
+                         sigma = exp(seq(-4,0,len=10)))
+#radial kernel
+set.seed(2)
+
+model.svmr <- train(recovery_time ~ .,
+                  data = covid_dat[rowTrain, ],
+                  method = "svmRadialSigma",
+                  preProcess = c("center", "scale"),
+                  tuneGrid = svmr.grid,
+                  trControl = ctrl2)
+
+myCol<- rainbow(20)
+myPar <- list(superpose.symbol = list(col = myCol),
+              superpose.line = list(col = myCol))
+ggplot(model.svmr, highlight = TRUE, par.settings = myPar)
+# test error
+radial_test_preds = predict(model.svmr, newdata = covid_dat[-rowTrain, ])
+confusionMatrix(data = radial_test_preds , 
+                reference = covid_dat$recovery_time[-rowTrain])
+stopCluster(cl)
+registerDoSEQ()
+
+```
+
+
+##  test data performance of SVM methods
+
+```{r,warning=FALSE}
+resamp <- resamples(list(svml = model.svml, 
+                         svmr = model.svmr 
+                        ))
+bwplot(resamp)
+```
+
+
+# Model comparison 
+
+```{r resample, cache=TRUE,warning=FALSE}
+res <- resamples(list(GLM = model.glm, GLMNET = model.glmn, GAM = model.gam, MARS = model.mars, CTREE = model.ctree, RPART = model.rpart, LDA = model.lda, QDA = model.qda, NB = model.nb,SVML=model.svml,SVMR=model.svmr))
+trainROC <- bwplot(res, metric = "ROC")
+summary(res)
+```
+
+
+```{r, warning=FALSE}
+
+# Prediction on test set
+glm.pred <- predict(model.glm, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+glmn.pred <- predict(model.glmn, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+gam.pred <- predict(model.gam, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+mars.pred <- predict(model.mars, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+ctree.pred <- predict(model.ctree, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
+rpart.pred <- predict(model.rpart, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
+lda.pred <- predict(model.lda, newdata =covid_dat2[-rowTrain,], type = "prob")[,2]
+qda.pred <- predict(model.qda, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+nb.pred <- predict(model.nb, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
+svml.pred <- predict(model.svml, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
+svmr.pred <- predict(model.svmr, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
+
+# Test error rate for all models
+test_glm_error = mean(glm.pred != covid_dat$recovery_time[-rowTrain])
+test_glmn_error = mean(glmn.pred != covid_dat$recovery_time[-rowTrain])
+test_gam_error = mean(gam.pred != covid_dat$recovery_time[-rowTrain])
+test_mars_error = mean(mars.pred != covid_dat$recovery_time[-rowTrain])
+test_ctree_error = mean(ctree.pred != covid_dat$recovery_time[-rowTrain])
+test_rpart_error = mean(rpart.pred != covid_dat$recovery_time[-rowTrain])
+test_lda_error = mean(lda.pred != covid_dat$recovery_time[-rowTrain])
+test_qda_error = mean(qda.pred != covid_dat$recovery_time[-rowTrain])
+test_nb_error = mean(nb.pred != covid_dat$recovery_time[-rowTrain])
+test_svml_error = mean(svml.pred != covid_dat$recovery_time[-rowTrain])
+test_svmr_error = mean(svmr.pred != covid_dat$recovery_time[-rowTrain])
+
+
+#roc
+roc.glm <- roc(covid_dat$recovery_time[-rowTrain], glm.pred)
+roc.glmn <- roc(covid_dat$recovery_time[-rowTrain], glmn.pred)
+roc.gam <- roc(covid_dat$recovery_time[-rowTrain], gam.pred)
+roc.mars <- roc(covid_dat$recovery_time[-rowTrain], mars.pred)
+
+roc.ctree <- roc(covid_dat$recovery_time[-rowTrain], ctree.pred)
+roc.rpart <- roc(covid_dat$recovery_time[-rowTrain], rpart.pred)
+
+roc.lda <- roc(covid_dat$recovery_time[-rowTrain], lda.pred)
+roc.qda <- roc(covid_dat$recovery_time[-rowTrain], qda.pred)
+roc.nb <- roc(covid_dat$recovery_time[-rowTrain], nb.pred)
+
+roc.svml <- roc(covid_dat$recovery_time[-rowTrain], svml.pred)
+roc.svmr <- roc(covid_dat$recovery_time[-rowTrain], svmr.pred)
+
+
+auc <- c(roc.glm$auc[1], roc.glmn$auc[1], 
+         roc.gam$auc[1], roc.mars$auc[1], 
+         roc.lda$auc[1],roc.qda$auc[1], roc.nb$auc[1],
+         roc.ctree$auc[1], roc.rpart$auc[1], 
+         roc.svml$auc[1], roc.svmr$auc[1]
+         )
+
+plot(roc.glm, legacy.axes = TRUE)
+plot(roc.glmn, col = 2, add = TRUE)
+
+plot(roc.gam, col = 3, add = TRUE)
+plot(roc.mars, col = 4, add = TRUE)
+
+plot(roc.lda, col = 5, add = TRUE)
+plot(roc.qda, col = 6, add = TRUE)
+plot(roc.nb, col = 7, add = TRUE)
+
+plot(roc.ctree, col = 8, add = TRUE)
+plot(roc.rpart, col = 9, add = TRUE)
+
+plot(roc.svml, col = 10, add = TRUE)
+plot(roc.svmr, col = 11, add = TRUE)
+
+
+modelNames <- c("glm","glmn","gam","mars","lda","qda","nb", "ctree",  "rpart","svm (linear kernel)", "svm (radial kernel)")
+legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)),
+       col = 1:11, lwd = 2)
+```
+
+```{r }
+# Create a df with the test error rates for each model
+model_names <- c("glm", "glmn", "gam", "mars", "ctree", "rpart", "lda", "qda", "nb", "svml", "svmr")
+test_errors <- c(test_glm_error, test_glmn_error, test_gam_error, test_mars_error, test_ctree_error, test_rpart_error, test_lda_error, test_qda_error, test_nb_error, test_svml_error, test_svmr_error)
+test_errors_df <- data.frame(model_names, test_errors)
+
+# Create the plot
+plot <- ggplot(test_errors_df, aes(x = test_errors, y = model_names)) +
+  geom_bar(stat = "identity", fill = "#0C4C8A") +
+  ggtitle("Test Error Rates for 11 Models") +
+  labs(x = "Error Rate", y = "Model") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)))
+
+# Print the plot
+print(plot)
+```
+
+
+```{r vip}
+# interpretation for final mars model
+model.mars$finalModel
+summary(model.mars$finalModel)
+model.mars$bestTune
+
+plot(model.mars)
+
+coef(model.mars$finalModel) 
+
+vip(model.mars$finalModel) + ggtitle("Gradient Boosting")
 ```
