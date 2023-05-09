@@ -264,7 +264,6 @@ ggplot(rpart.fit, highlight = TRUE)
 rpart.plot(rpart.fit$finalModel)
 
 # Report the variable importance
-summary(rpart.fit$finalModel, las = 2, cBars = 19, cex.names = 0.6)
 plot(varImp(rpart.fit, scale = TRUE))
 
 ## rpart does not have RMSE
