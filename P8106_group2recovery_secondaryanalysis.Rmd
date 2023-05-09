@@ -174,8 +174,6 @@ model.glm <- train(x = covid_dat2[rowTrain,],
 
 ## Penalized logistic regression
 
-Penalized logistic regression can be fitted using `glmnet`. We use the `train` function to select the optimal tuning parameters.
-
 ```{r}
 glmnGrid <- expand.grid(.alpha = seq(0, 1, length = 21),
                         .lambda = exp(seq(-8, -1, length = 50)))
@@ -292,9 +290,6 @@ model.qda <- train(x = covid_dat2[rowTrain,],
 ```
 
 ## Naive Bayes (NB)
-
-There is one practical issue with the NB classifier when nonparametric estimators are used. When a new data point includes a feature value that never occurs for some response class, the posterior probability can become zero. To avoid this, we increase the count of the value with a zero occurrence to a small value, so that the overall probability doesn't become zero. In practice, a value of one or two is a common choice. 
-This correction is called "Laplace Correction," and is implemented via the parameter `fL`. The parameter `adjust` adjusts the bandwidths of the kernel density estimates, and a larger value means a more flexible estimate.
 
 ```{r, warning=FALSE,warning=FALSE}
 nbGrid <- expand.grid(usekernel = c(FALSE,TRUE),
@@ -502,6 +497,7 @@ svml.pred <- predict(model.svml, newdata = covid_dat[-rowTrain,], type = "prob")
 svmr.pred <- predict(model.svmr, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
 
 # Test error rate for all models
+
 test_glm_error = mean(glm.pred != covid_dat$recovery_time[-rowTrain])
 test_glmn_error = mean(glmn.pred != covid_dat$recovery_time[-rowTrain])
 test_gam_error = mean(gam.pred != covid_dat$recovery_time[-rowTrain])
@@ -513,6 +509,50 @@ test_qda_error = mean(qda.pred != covid_dat$recovery_time[-rowTrain])
 test_nb_error = mean(nb.pred != covid_dat$recovery_time[-rowTrain])
 test_svml_error = mean(svml.pred != covid_dat$recovery_time[-rowTrain])
 test_svmr_error = mean(svmr.pred != covid_dat$recovery_time[-rowTrain])
+
+# Generalized Linear Model (GLM)
+test_glm_error
+
+# Penalized logistic regression (GLMN)
+test_glmn_error
+
+# Generalized Additive Model (GAM)
+test_gam_error
+
+# Multivariate Adaptive Regression Splines (MARS)
+test_mars_error
+
+# Conditional Inference Tree (CART)
+test_ctree_error
+
+# Recursive Partitioning and Regression Trees (RPART)
+test_rpart_error 
+
+# Linear Discriminant Analysis (LDA)
+test_lda_error
+
+# Quadratic Discriminant Analysis (QDA)
+test_qda_error
+
+# Naive Bayes (NB)
+test_nb_error
+
+# Support Vector Machine Regression (SVMR)
+pred_svmr_test = predict(model.svmr, newdata=covid_dat[-rowTrain,], type="raw")
+test_svmr_error = mean(pred_svmr_test != covid_dat$recovery_time[-rowTrain])
+test_svmr_error
+
+# Support Vector Machine Classification (SVML)
+pred_svml_test = predict(model.svml, newdata=covid_dat[-rowTrain,], type="raw")
+test_svml_error = mean(pred_svml_test != covid_dat$recovery_time[-rowTrain])
+test_svml_error
+
+#create the table
+model_errors <- data.frame(Model = c("GLM", "GLMN", "GAM", "MARS", "CART", "RPART", "LDA", "QDA", "NB", "SVMR", "SVML"),
+Error_Rate = c(test_glm_error, test_glmn_error, test_gam_error, test_mars_error, 
+test_ctree_error, test_rpart_error, test_lda_error, test_qda_error, test_nb_error, test_svmr_error, test_svml_error))
+
+knitr::kable(model_errors, align = "c")
 
 
 #roc
@@ -561,24 +601,6 @@ legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)),
        col = 1:11, lwd = 2)
 ```
 
-```{r }
-# Create a df with the test error rates for each model
-model_names <- c("glm", "glmn", "gam", "mars", "ctree", "rpart", "lda", "qda", "nb", "svml", "svmr")
-test_errors <- c(test_glm_error, test_glmn_error, test_gam_error, test_mars_error, test_ctree_error, test_rpart_error, test_lda_error, test_qda_error, test_nb_error, test_svml_error, test_svmr_error)
-test_errors_df <- data.frame(model_names, test_errors)
-
-# Create the plot
-plot <- ggplot(test_errors_df, aes(x = test_errors, y = model_names)) +
-  geom_bar(stat = "identity", fill = "#0C4C8A") +
-  ggtitle("Test Error Rates for 11 Models") +
-  labs(x = "Error Rate", y = "Model") +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)))
-
-# Print the plot
-print(plot)
-```
 
 
 ```{r vip}
