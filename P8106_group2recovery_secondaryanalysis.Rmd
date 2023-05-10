@@ -161,7 +161,6 @@ partimat(recovery_time ~ age + height + weight + bmi + SBP + LDL, data = covid_d
 
 ## GLM
 
-
 ```{r}
 
 set.seed(2)
@@ -268,6 +267,7 @@ ggroc(list(roc.glm, roc.glmn, roc.gam, roc.mars), legacy.axes = TRUE) +
 # Discriminant Analysis
 
 ## LDA
+
 ```{r,warning=FALSE}
 set.seed(2)
 
@@ -337,23 +337,21 @@ legend("bottomright", legend = paste0(modelNames, ": ", round(auc,3)),
 
 # classification tree models
 
-
 ## rpart
 
 ```{r,warning=FALSE}
-
 num_cores <- detectCores() 
 cl <- makePSOCKcluster(num_cores)
 registerDoParallel(cl)
 set.seed(2)
 
 model.rpart = train(recovery_time ~ .,
-                  covid_dat,
-                  subset = rowTrain,
-                  method = "rpart",
-                  tuneGrid = data.frame(cp = exp(seq(-6, -3, len = 50))),
-                  trControl = ctrl2,
-                  metric = "ROC")
+                    covid_dat,
+                    subset = rowTrain,
+                    method = "rpart",
+                    tuneGrid = data.frame(cp = exp(seq(-6, -3, len = 50))),
+                    trControl = ctrl2,
+                    metric = "ROC")
 
 ggplot(model.rpart, highlight = TRUE)
 
@@ -368,16 +366,17 @@ registerDoSEQ()
 num_cores <- detectCores() 
 cl <- makePSOCKcluster(num_cores)
 registerDoParallel(cl)
+
 set.seed(2)
 
 
 model.ctree = train(recovery_time ~ .,
-                  covid_dat,
-                  subset = rowTrain,
-                  method = "ctree",
-                  tuneGrid = data.frame(mincriterion = 1 - exp(seq(-2, -1, length = 50))),
-                  metric = "ROC",
-                  trControl = ctrl2)
+                    covid_dat,
+                    subset = rowTrain,
+                    method = "ctree",
+                    tuneGrid = data.frame(mincriterion = 1 - exp(seq(-2, -1, length = 50))),
+                    metric = "ROC",
+                    trControl = ctrl2)
 
 ggplot(model.ctree, highlight = TRUE)
 
@@ -394,9 +393,61 @@ resamp_tree <- resamples(list(rpart = model.rpart,
 summary(resamp_tree)
 ```
 
+# Random forests
 
+```{r}
+num_cores <- detectCores() 
+cl <- makePSOCKcluster(num_cores)
+registerDoParallel(cl)
+
+rf.grid = expand.grid(mtry = 0:8,
+                      splitrule = "gini",
+                      min.node.size = seq(from = 2, to = 10, by = 2))
+set.seed(2)
+rf.fit = train(recovery_time ~ .,
+               covid_dat,
+               subset = rowTrain,
+               method = "ranger",
+               tuneGrid = rf.grid,
+               metric = "ROC",
+               trControl = ctrl2)
+ggplot(rf.fit, highlight = TRUE)
+
+plot(model.ctree$finalModel)
+stopCluster(cl)
+registerDoSEQ()
+```
+
+# Boosting
+
+```{r}
+num_cores <- detectCores() 
+cl <- makePSOCKcluster(num_cores)
+registerDoParallel(cl)
+
+gbmA_grid = expand.grid(n.trees = c(100, 250, 500, 1000, 2000, 3000),
+                       interaction.depth = 1:6,
+                       shrinkage = c(0.002, 0.005, 0.008),
+                       n.minobsinnode = 1)
+set.seed(2)
+gbmA.fit = train(recovery_time ~ . ,
+                covid_dat[rowTrain,],
+                tuneGrid = gbmA_grid,
+                trControl = ctrl2,
+                method = "gbm",
+                distribution = "adaboost",
+                metric = "ROC",
+                verbose = FALSE)
+
+gbmA.fit$bestTune
+ggplot(gbmA.fit, highlight = TRUE)
+
+stopCluster(cl)
+registerDoSEQ()
+```
 
 # Support Vector Machines
+
 ```{r,warning=FALSE}
 num_cores <- detectCores() 
 cl <- makePSOCKcluster(num_cores)
@@ -434,7 +485,6 @@ test_svml_error
 
 stopCluster(cl)
 registerDoSEQ()
-
 ```
 
 ```{r,warning=FALSE}
@@ -485,7 +535,7 @@ bwplot(resamp)
 # Model comparison 
 
 ```{r resample, cache=TRUE,warning=FALSE}
-res <- resamples(list(GLM = model.glm, GLMNET = model.glmn, GAM = model.gam, MARS = model.mars, CTREE = model.ctree, RPART = model.rpart, LDA = model.lda, QDA = model.qda, NB = model.nb,SVML=model.svml,SVMR=model.svmr))
+res <- resamples(list(GLM = model.glm, GLMNET = model.glmn, GAM = model.gam, MARS = model.mars, CTREE = model.ctree, RPART = model.rpart, LDA = model.lda, QDA = model.qda, NB = model.nb,SVML=model.svml,SVMR=model.svmr, rf = rf.fit, boost = gbmA.fit))
 trainROC <- bwplot(res, metric = "ROC")
 summary(res)
 ```
