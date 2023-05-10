@@ -427,6 +427,11 @@ model.svml$finalModel
 linear_test_preds = predict(model.svml, newdata = covid_dat[-rowTrain, ])
 confusionMatrix(data = linear_test_preds, 
                 reference = covid_dat$recovery_time[-rowTrain])
+# Support Vector Machine Classification (SVML)
+pred_svml_test = predict(model.svml, newdata=covid_dat[-rowTrain,], type="raw")
+test_svml_error = mean(pred_svml_test != covid_dat$recovery_time[-rowTrain])
+test_svml_error
+
 stopCluster(cl)
 registerDoSEQ()
 
@@ -456,6 +461,11 @@ ggplot(model.svmr, highlight = TRUE, par.settings = myPar)
 radial_test_preds = predict(model.svmr, newdata = covid_dat[-rowTrain, ])
 confusionMatrix(data = radial_test_preds , 
                 reference = covid_dat$recovery_time[-rowTrain])
+# Support Vector Machine Regression (SVMR)
+pred_svmr_test = predict(model.svmr, newdata=covid_dat[-rowTrain,], type="raw")
+test_svmr_error = mean(pred_svmr_test != covid_dat$recovery_time[-rowTrain])
+test_svmr_error
+
 stopCluster(cl)
 registerDoSEQ()
 
@@ -495,64 +505,6 @@ qda.pred <- predict(model.qda, newdata = covid_dat2[-rowTrain,], type = "prob")[
 nb.pred <- predict(model.nb, newdata = covid_dat2[-rowTrain,], type = "prob")[,2]
 svml.pred <- predict(model.svml, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
 svmr.pred <- predict(model.svmr, newdata = covid_dat[-rowTrain,], type = "prob")[,2]
-
-# Test error rate for all models
-
-test_glm_error = mean(glm.pred != covid_dat$recovery_time[-rowTrain])
-test_glmn_error = mean(glmn.pred != covid_dat$recovery_time[-rowTrain])
-test_gam_error = mean(gam.pred != covid_dat$recovery_time[-rowTrain])
-test_mars_error = mean(mars.pred != covid_dat$recovery_time[-rowTrain])
-test_ctree_error = mean(ctree.pred != covid_dat$recovery_time[-rowTrain])
-test_rpart_error = mean(rpart.pred != covid_dat$recovery_time[-rowTrain])
-test_lda_error = mean(lda.pred != covid_dat$recovery_time[-rowTrain])
-test_qda_error = mean(qda.pred != covid_dat$recovery_time[-rowTrain])
-test_nb_error = mean(nb.pred != covid_dat$recovery_time[-rowTrain])
-test_svml_error = mean(svml.pred != covid_dat$recovery_time[-rowTrain])
-test_svmr_error = mean(svmr.pred != covid_dat$recovery_time[-rowTrain])
-
-# Generalized Linear Model (GLM)
-test_glm_error
-
-# Penalized logistic regression (GLMN)
-test_glmn_error
-
-# Generalized Additive Model (GAM)
-test_gam_error
-
-# Multivariate Adaptive Regression Splines (MARS)
-test_mars_error
-
-# Conditional Inference Tree (CART)
-test_ctree_error
-
-# Recursive Partitioning and Regression Trees (RPART)
-test_rpart_error 
-
-# Linear Discriminant Analysis (LDA)
-test_lda_error
-
-# Quadratic Discriminant Analysis (QDA)
-test_qda_error
-
-# Naive Bayes (NB)
-test_nb_error
-
-# Support Vector Machine Regression (SVMR)
-pred_svmr_test = predict(model.svmr, newdata=covid_dat[-rowTrain,], type="raw")
-test_svmr_error = mean(pred_svmr_test != covid_dat$recovery_time[-rowTrain])
-test_svmr_error
-
-# Support Vector Machine Classification (SVML)
-pred_svml_test = predict(model.svml, newdata=covid_dat[-rowTrain,], type="raw")
-test_svml_error = mean(pred_svml_test != covid_dat$recovery_time[-rowTrain])
-test_svml_error
-
-#create the table
-model_errors <- data.frame(Model = c("GLM", "GLMN", "GAM", "MARS", "CART", "RPART", "LDA", "QDA", "NB", "SVMR", "SVML"),
-Error_Rate = c(test_glm_error, test_glmn_error, test_gam_error, test_mars_error, 
-test_ctree_error, test_rpart_error, test_lda_error, test_qda_error, test_nb_error, test_svmr_error, test_svml_error))
-
-knitr::kable(model_errors, align = "c")
 
 
 #roc
@@ -613,5 +565,5 @@ plot(model.mars)
 
 coef(model.mars$finalModel) 
 
-vip(model.mars$finalModel) + ggtitle("Gradient Boosting")
+vip(model.mars$finalModel) + ggtitle("vip for MARS")
 ```
